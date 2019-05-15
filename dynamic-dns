@@ -1,0 +1,58 @@
+#!/bin/bash
+
+if [[ ! -f ".env" ]]; then
+	echo "Create a .env file that defines API_TOKEN and DOMAINS_DIR"
+	exit 1
+fi
+
+source .env
+
+if [[ "${API_TOKEN}" = "" || "${DOMAINS_DIR}" = "" ]]; then
+	echo ".env file must set API_TOKEN and DOMAINS_DIR"
+	exit 1
+fi
+
+# Fetch the current IP address
+IP_ADDRESS="$(curl --silent ifconfig.co/ip | tr -d '\n')"
+
+exit_code=0
+first_domain=1
+for domain in "$DOMAINS_DIR"/*; do
+	DOMAIN=""
+	SUBDOMAIN=""
+
+	if [[ "${first_domain}" = 0 ]]; then
+		echo
+	fi
+	first_domain=0
+
+	echo "*** Loading ${domain}"
+	source "${domain}"
+
+	if [[ "${DOMAIN}" = "" ]]; then
+		exit_code=1
+		echo "!!! ${domain} did not set required DOMAIN variable"
+		continue
+	fi
+	if [[ $"{SUBDOMAIN}" = "" ]]; then
+		exit_code=1
+		echo "!!! ${domain} did not set required SUBDOMAIN variable"
+		continue
+	fi
+
+	record_id="$(curl --silent -X GET \
+		-H "Content-Type: application/json" \
+		-H "Authorization: Bearer ${API_TOKEN}" \
+		"https://api.digitalocean.com/v2/domains/${DOMAIN}/records?per_page=200" | \
+			jq ".domain_records[] | select(.name==\"${SUBDOMAIN}\").id")"
+
+	curl --silent -X PUT \
+		-H "Content-Type: application/json" \
+		-H "Authorization: Bearer ${API_TOKEN}" \
+		-d '{"data": "'${IP_ADDRESS}'"}' \
+		"https://api.digitalocean.com/v2/domains/${DOMAIN}/records/${record_id}" &> /dev/null
+
+	echo "*** DNS Record ${record_id} (${SUBDOMAIN}.${DOMAIN}) updated with IP address: ${IP_ADDRESS}"
+done
+
+exit $exit_code
