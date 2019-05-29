@@ -1,11 +1,12 @@
 #!/bin/bash
 
-if [[ ! -f ".env" ]]; then
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+if [[ ! -f "${DIR}/.env" ]]; then
 	echo "Create a .env file that defines API_TOKEN and DOMAINS_DIR"
 	exit 1
 fi
 
-source .env
+source "${DIR}/.env"
 
 if [[ "${API_TOKEN}" = "" || "${DOMAINS_DIR}" = "" ]]; then
 	echo ".env file must set API_TOKEN and DOMAINS_DIR"
