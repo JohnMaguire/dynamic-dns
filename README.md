@@ -6,8 +6,10 @@ A quick script for updating DNS.
 Clone the repository, and create a `.env` with the following content:
 
 ```
-API_TOKEN="API token retrieved from DigitalOcean"
 DOMAINS_DIR="Path to a directory of config files"
+# Uncomment the below lines as needed
+#DIGITALOCEAN_API_TOKEN="API token retrieved from DigitalOcean (needs read and write scopes)"
+#CLOUDFLARE_API_TOKEN="API token retrieved from Cloudflare (needs 'Edit zone DNS' / Zone.DNS permission for all zones)"
 ```
 
 `DOMAINS_DIR` should point to a directory (e.g. `/opt/dynamic-dns/domains.d`) with files that look like this:
@@ -15,6 +17,8 @@ DOMAINS_DIR="Path to a directory of config files"
 ```
 DOMAIN="johnmaguire.me"
 SUBDOMAIN="home"
+# PROVIDER defaults to digitalocean for backwards compatibility
+#PROVIDER="cloudflare"
 ```
 
 Finally, configure a cron job or systemd unit to periodically call the script.

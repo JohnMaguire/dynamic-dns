@@ -8,8 +8,10 @@ fi
 
 source "${DIR}/.env"
 
-if [[ "${API_TOKEN}" = "" || "${DOMAINS_DIR}" = "" ]]; then
-	echo ".env file must set API_TOKEN and DOMAINS_DIR"
+DIGITALOCEAN_API_TOKEN="${DIGITALOCEAN_API_TOKEN:=${API_TOKEN}}"
+
+if [[ "${DOMAINS_DIR}" = "" ]]; then
+	echo ".env file must set DOMAINS_DIR"
 	exit 1
 fi
 
@@ -21,6 +23,7 @@ first_domain=1
 for domain in "$DOMAINS_DIR"/*; do
 	DOMAIN=""
 	SUBDOMAIN=""
+	PROVIDER=""
 
 	if [[ "${first_domain}" = 0 ]]; then
 		echo
@@ -29,6 +32,8 @@ for domain in "$DOMAINS_DIR"/*; do
 
 	echo "*** Loading ${domain}"
 	source "${domain}"
+
+	PROVIDER="${PROVIDER:=digitalocean}"
 
 	if [[ "${DOMAIN}" = "" ]]; then
 		exit_code=1
@@ -41,19 +46,89 @@ for domain in "$DOMAINS_DIR"/*; do
 		continue
 	fi
 
-	record_id="$(curl --silent -X GET \
-		-H "Content-Type: application/json" \
-		-H "Authorization: Bearer ${API_TOKEN}" \
-		"https://api.digitalocean.com/v2/domains/${DOMAIN}/records?per_page=200" | \
-			jq ".domain_records[] | select(.name==\"${SUBDOMAIN}\").id")"
+	case "${PROVIDER}" in
+		cloudflare)
+			if [[ "${CLOUDFLARE_API_TOKEN}" = "" ]]; then
+				exit_code=1
+				echo "!!! Can't update ${SUBDOMAIN}.${DOMAIN} via Cloudflare because CLOUDFLARE_API_TOKEN is not set!"
+				continue
+			fi
 
-	curl --silent -X PUT \
-		-H "Content-Type: application/json" \
-		-H "Authorization: Bearer ${API_TOKEN}" \
-		-d '{"data": "'${IP_ADDRESS}'"}' \
-		"https://api.digitalocean.com/v2/domains/${DOMAIN}/records/${record_id}" &> /dev/null
+			echo "*** Updating ${SUBDOMAIN}.${DOMAIN} via Cloudflare"
 
-	echo "*** DNS Record ${record_id} (${SUBDOMAIN}.${DOMAIN}) updated with IP address: ${IP_ADDRESS}"
+			zone_id="$(curl --silent -X GET \
+				-H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+				-H "Content-Type: application/json" \
+				"https://api.cloudflare.com/client/v4/zones?name=${DOMAIN}" | \
+					jq -r ".result[] | select(.name==\"${DOMAIN}\").id")"
+
+			if [ "$zone_id" = "" ]; then
+				exit_code=1
+				echo "!!! Failed to find zone ${DOMAIN} in Cloudflare"
+				continue
+			fi
+
+			record_id="$(curl --silent -X GET \
+				-H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+				-H "Content-Type: application/json" \
+				"https://api.cloudflare.com/client/v4/zones/${zone_id}/dns_records?name=${SUBDOMAIN}.${DOMAIN}" | \
+					jq -r ".result[] | select(.name==\"${SUBDOMAIN}.${DOMAIN}\").id")"
+			
+			put_post="PUT"
+			if [ "$record_id" = "" ]; then
+				put_post="POST"
+			fi
+
+			# Update/create the DNS record
+			success="$(curl --silent -X "${put_post}" \
+ 				-H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+				-H "Content-Type: application/json" \
+				--data '{"id": "'${record_id}'", "type": "A", "name": "'${SUBDOMAIN}'.'${DOMAIN}'", "content": "'${IP_ADDRESS}'", "ttl": 1, "proxied": false}"' \
+				"https://api.cloudflare.com/client/v4/zones/${zone_id}/dns_records/${record_id}" | \
+					jq -r ".success")"
+
+			if [ "${success}" = "true" ]; then
+				echo "*** DNS Record ${record_id} in zone ${zone_id} (${SUBDOMAIN}.${DOMAIN}) updated in Cloudflare with IP address: ${IP_ADDRESS}"
+			else
+				exit_code=1
+				echo "!!! Failed to update DNS record (${SUBDOMAIN}.${DOMAIN})!"
+			fi
+			;;
+		*)
+			if [[ "${DIGITALOCEAN_API_TOKEN}" = "" ]]; then
+				exit_code=1
+				echo "!!! Can't update ${SUBDOMAIN}.${DOMAIN} via Cloudflare because CLOUDFLARE_API_TOKEN is not set!"
+				continue
+			fi
+
+			echo "*** Updating ${SUBDOMAIN}.${DOMAIN} via DigitalOcean"
+
+			record_id="$(curl --silent -X GET \
+				-H "Content-Type: application/json" \
+				-H "Authorization: Bearer ${DIGITALOCEAN_API_TOKEN}" \
+				"https://api.digitalocean.com/v2/domains/${DOMAIN}/records?per_page=200" | \
+					jq -r ".domain_records[] | select(.name==\"${SUBDOMAIN}\").id")"
+
+			if [ "$record_id" = "" ]; then
+				exit_code=1
+				echo "!!! Failed to find DNS record ${SUBDOMAIN}.${DOMAIN} in DigitalOcean"
+				continue
+			fi
+
+			curl --silent -X PUT \
+				-H "Content-Type: application/json" \
+				-H "Authorization: Bearer ${DIGITALOCEAN_API_TOKEN}" \
+				-d '{"data": "'${IP_ADDRESS}'"}' \
+				"https://api.digitalocean.com/v2/domains/${DOMAIN}/records/${record_id}" &> /dev/null
+
+			if [ $? -eq 0 ]; then
+				echo "*** DNS Record ${record_id} (${SUBDOMAIN}.${DOMAIN}) updated in DigitalOcean with IP address: ${IP_ADDRESS}"
+			else
+				exit_code=1
+				echo "!!! Failed to update DNS record (${SUBDOMAIN}.${DOMAIN})!"
+			fi
+			;;
+	esac
 done
 
 exit $exit_code
