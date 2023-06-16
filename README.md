@@ -1,5 +1,5 @@
-# DigitalOcean Dynamic DNS Updater
-A quick script for updating DNS.
+# Dynamic DNS Updater
+A simple Bash script for updating DNS records in Cloudflare and DigitalOcean.
 
 ## Instructions
 
