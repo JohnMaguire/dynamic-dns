@@ -1,0 +1,5 @@
+DOMAINS_DIR="/opt/dynamic-dns/domains.d"
+
+# Uncomment the below lines as needed
+#DIGITALOCEAN_API_TOKEN="API token retrieved from DigitalOcean (needs read and write scopes)"
+#CLOUDFLARE_API_TOKEN="API token retrieved from Cloudflare (needs 'Edit zone DNS' / Zone.DNS permission for all zones)"

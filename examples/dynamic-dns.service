@@ -1,0 +1,6 @@
+[Unit]
+Description=Dynamic DNS service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/dynamic-dns/dynamic-dns
