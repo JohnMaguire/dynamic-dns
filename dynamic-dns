@@ -40,7 +40,7 @@ for domain in "$DOMAINS_DIR"/*; do
 		echo "!!! ${domain} did not set required DOMAIN variable"
 		continue
 	fi
-	if [[ $"{SUBDOMAIN}" = "" ]]; then
+	if [[ "${SUBDOMAIN}" = "" ]]; then
 		exit_code=1
 		echo "!!! ${domain} did not set required SUBDOMAIN variable"
 		continue
@@ -73,7 +73,7 @@ for domain in "$DOMAINS_DIR"/*; do
 				-H "Content-Type: application/json" \
 				"https://api.cloudflare.com/client/v4/zones/${zone_id}/dns_records?name=${SUBDOMAIN}.${DOMAIN}" | \
 					jq -r ".result[] | select(.name==\"${SUBDOMAIN}.${DOMAIN}\").id")"
-			
+
 			put_post="PUT"
 			if [ "$record_id" = "" ]; then
 				put_post="POST"
