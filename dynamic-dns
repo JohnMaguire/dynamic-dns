@@ -97,7 +97,7 @@ for domain in "$DOMAINS_DIR"/*; do
 		*)
 			if [[ "${DIGITALOCEAN_API_TOKEN}" = "" ]]; then
 				exit_code=1
-				echo "!!! Can't update ${SUBDOMAIN}.${DOMAIN} via Cloudflare because CLOUDFLARE_API_TOKEN is not set!"
+				echo "!!! Can't update ${SUBDOMAIN}.${DOMAIN} via DigitalOcean because DIGITALOCEAN_API_TOKEN is not set!"
 				continue
 			fi
 
